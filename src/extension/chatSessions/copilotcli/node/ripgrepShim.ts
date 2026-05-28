@@ -50,6 +50,13 @@ export async function copyRipgrepShim(extensionPath: string, vscodeRipgrepPath: 
 
 	logService.info(`Creating ripgrep shim: source=${vscodeRipgrepPath}, dest=${ripgrepDir}`);
 	try {
+		// Check if source directory exists before trying to read it
+		try {
+			await fs.access(vscodeRipgrepPath);
+		} catch {
+			logService.warn(`Ripgrep source directory not found: ${vscodeRipgrepPath}. Skipping ripgrep shim creation.`);
+			return;
+		}
 		await fs.mkdir(ripgrepDir, { recursive: true });
 		const entries = await fs.readdir(vscodeRipgrepPath);
 		const uniqueEntries = [...new Set(entries)];

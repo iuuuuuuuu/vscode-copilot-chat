@@ -39,6 +39,7 @@ import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../.
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation as ApiChatLocation, ExtensionMode } from '../../../vscodeTypes';
 import type { LMResponsePart } from '../../byok/common/byokProvider';
+import { isBYOKModel } from '../../byok/node/openAIEndpoint';
 import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
@@ -215,9 +216,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		};
 		this._register(vscode.lm.registerLanguageModelChatProvider('copilot', provider));
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			if (!this._authenticationService.anyGitHubSession) {
-				this._currentModels = [];
-			}
+			// In no-login mode, don't clear models when session is missing
 			// Auth changed which means models could've changed. Fire the event
 			this._onDidChange.fire();
 		}));
@@ -229,17 +228,32 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
 		const session = await this._getToken();
+		// In no-login mode, continue even without a session to support BYOK models
 		if (!session) {
-			// Return cached models until we have auth reacquired
-			// We clear this list in onDidAuthenticationChange so signed out should still have model picker clear
-			return this._currentModels;
+			this._logService.trace('[LanguageModelAccess] No auth token, proceeding anyway for no-login/BYOK mode');
 		}
 
 		const models: vscode.LanguageModelChatInformation[] = [];
-		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
-		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
+		let allEndpoints: IChatEndpoint[] = [];
+		try {
+			allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		} catch (e) {
+			this._logService.warn('[LanguageModelAccess] Failed to get endpoints:', e);
+			return this._currentModels;
+		}
+		// In no-login mode, only show BYOK models
+		const isNoLogin = !this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser;
+		let chatEndpoints: IChatEndpoint[];
+		if (isNoLogin) {
+			chatEndpoints = allEndpoints.filter(e => isBYOKModel(e) !== -1);
+			this._logService.info(`[LanguageModelAccess] No-login mode: filtered to ${chatEndpoints.length} BYOK models`);
+		} else {
+			chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
+		}
 		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
-		chatEndpoints.push(autoEndpoint);
+		if (!isNoLogin || isBYOKModel(autoEndpoint) !== -1) {
+			chatEndpoints.push(autoEndpoint);
+		}
 		let defaultChatEndpoint: IChatEndpoint;
 		const defaultExpModel = this._expService.getTreatmentVariable<string>('chat.defaultLanguageModel')?.replace('copilot/', '');
 		if (this._authenticationService.copilotToken?.isNoAuthUser || !defaultExpModel || defaultExpModel === AutoChatEndpoint.pseudoModelId) {
@@ -277,6 +291,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			let modelCategory: { label: string; order: number } | undefined;
 			if (endpoint instanceof AutoChatEndpoint) {
 				modelCategory = { label: '', order: Number.MIN_SAFE_INTEGER };
+			} else if (isNoLogin) {
+				// In no-login mode, no category header for BYOK models
+				modelCategory = undefined;
 			} else if (endpoint.isPremium === undefined || this._authenticationService.copilotToken?.isFreeUser) {
 				modelCategory = { label: vscode.l10n.t("Copilot Models"), order: 0 };
 			} else if (endpoint.isPremium) {
@@ -369,7 +386,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
-		return this._chatEndpoints.find(e => e.model === ModelAliasRegistry.resolveAlias(model.id));
+		// Try filtered endpoints first (BYOK-only in no-login mode)
+		const resolved = this._chatEndpoints.find(e => e.model === ModelAliasRegistry.resolveAlias(model.id));
+		if (resolved) {
+			return resolved;
+		}
+		// Fallback: search all endpoints for vendor-configured models (Azure, OpenAI, etc.)
+		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		return allEndpoints.find(e => e.model === ModelAliasRegistry.resolveAlias(model.id));
 	}
 
 	private async _provideLanguageModelChatResponse(

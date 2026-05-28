@@ -218,8 +218,8 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		try {
 			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 			if (!authToken) {
-				this._logService.debug(`[getAllSessions] No authentication token available (nwo=${nwo})`);
-				throw new PermissiveAuthRequiredError();
+				this._logService.debug(`[getAllSessions] No authentication token available (nwo=${nwo}), returning empty`);
+				return [];
 			}
 			this._logService.debug(`[getAllSessions] Fetching sessions for nwo=${nwo}, open=${open}`);
 			const result = await this._capiClientService.makeRequest<SessionInfo[]>({
@@ -255,8 +255,8 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		try {
 			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 			if (!authToken) {
-				this._logService.trace('No authentication token available for getCustomAgents');
-				throw new PermissiveAuthRequiredError();
+				this._logService.trace('No authentication token available for getCustomAgents, returning empty');
+				return [];
 			}
 			const response = await this._capiClientService.makeRequest<Response>({
 				method: 'GET',
@@ -435,8 +435,8 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		try {
 			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 			if (!authToken) {
-				this._logService.trace('No authentication token available for getCopilotAgentModels');
-				throw new PermissiveAuthRequiredError();
+				this._logService.trace('No authentication token available for getCopilotAgentModels, returning empty');
+				return [];
 			}
 			const response = await this._capiClientService.makeRequest<Response>({
 				method: 'GET',

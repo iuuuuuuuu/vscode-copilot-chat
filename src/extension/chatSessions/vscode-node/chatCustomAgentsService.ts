@@ -59,7 +59,7 @@ export class ChatCustomAgentsService extends Disposable implements IChatCustomAg
 	}
 
 	private async refreshCustomAgents(token: CancellationToken): Promise<void> {
-		const parsedAgents = coalesce(await Promise.all(vscode.chat.customAgents.map(async resource => {
+		const parsedAgents = coalesce(await Promise.all((vscode.chat.customAgents ?? []).map(async resource => {
 			try {
 				return await this.promptsService.parseFile(resource.uri, token);
 			} catch (error) {

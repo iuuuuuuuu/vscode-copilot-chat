@@ -50,6 +50,13 @@ export async function copyNodePtyFiles(extensionPath: string, sourceNodePtyPath:
 	logService.info(`Creating node-pty shim: source=${sourceNodePtyPath}, dest=${nodePtyDir}`);
 
 	try {
+		// Check if source directory exists before trying to read it
+		try {
+			await fs.access(sourceNodePtyPath);
+		} catch {
+			logService.warn(`Node-pty source directory not found: ${sourceNodePtyPath}. Skipping node-pty shim creation.`);
+			return;
+		}
 		await fs.mkdir(nodePtyDir, { recursive: true });
 		const entries = await fs.readdir(sourceNodePtyPath);
 		const uniqueEntries = [...new Set(entries)];

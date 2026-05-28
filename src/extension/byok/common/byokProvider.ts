@@ -159,6 +159,11 @@ export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiCli
 		return true;
 	}
 
+	// Allow BYOK for no-auth users (no-login mode)
+	if (copilotToken.isNoAuthUser) {
+		return true;
+	}
+
 	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
 	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual) && !isGHE;
 	return byokAllowed;

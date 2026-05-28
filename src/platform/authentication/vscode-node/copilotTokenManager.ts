@@ -70,13 +70,7 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 			return { kind: 'failure', reason: failWith };
 		}
 
-		const allowNoAuthAccess = this.configurationService.getNonExtensionConfig<boolean>('chat.allowAnonymousAccess');
 		const session = await getAnyAuthSession(this.configurationService, { silent: true });
-		if (!session && !allowNoAuthAccess) {
-			this._logService.warn('GitHub login failed');
-			this._telemetryService.sendGHTelemetryErrorEvent('auth.github_login_failed');
-			return { kind: 'failure', reason: 'GitHubLoginFailed' };
-		}
 		if (session) {
 			// Log the steps by default, but only log actual token values when the log level is set to debug.
 			this._logService.info(`Logged in as ${session.account.label}`);

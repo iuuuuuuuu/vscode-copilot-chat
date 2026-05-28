@@ -15,6 +15,8 @@ import { byokKnownModelToAPIInfo, resolveModelInfo } from '../common/byokProvide
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
+import * as path from 'path';
+import { promises as fsPromises } from 'fs';
 
 export function resolveCustomOAIUrl(modelId: string, url: string): string {
 	// The fully resolved url was already passed in
@@ -118,12 +120,51 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			return super.getAllModels(silent, apiKey, configuration);
 		}
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomOAIModelProviderConfig>[] = [];
+
+		// First try: use configuration passed by VS Code
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
 				models.push({
 					...byokKnownModelToAPIInfo(this._name, modelConfig.id, modelConfig),
 					url: modelConfig.url
 				});
+			}
+		}
+
+		// Fallback: read chatLanguageModels.json directly if no models found
+		if (models.length === 0) {
+			try {
+				const configPath = path.join(process.env.APPDATA || '', 'Code', 'User', 'chatLanguageModels.json');
+				const content = await fsPromises.readFile(configPath, 'utf-8');
+				const allProviders = JSON.parse(content);
+				for (const provider of allProviders) {
+					if (provider.vendor !== this._name && provider.vendor !== (this._name as string).toLowerCase()) {
+						continue;
+					}
+					if (!apiKey && provider.apiKey) {
+						apiKey = provider.apiKey;
+					}
+					if (Array.isArray(provider.models)) {
+						for (const modelConfig of provider.models) {
+							const capabilities: any = {
+								name: modelConfig.name || modelConfig.id,
+								maxInputTokens: modelConfig.maxInputTokens || 128000,
+								maxOutputTokens: modelConfig.maxOutputTokens || 8192,
+								toolCalling: modelConfig.toolCalling !== false,
+								vision: modelConfig.vision !== false,
+							};
+							const fullId = provider.name ? `${provider.vendor}/${provider.name}/${modelConfig.id}` : modelConfig.id;
+							models.push({
+								...byokKnownModelToAPIInfo(this._name, fullId, capabilities),
+								family: modelConfig.id,
+								url: modelConfig.url,
+							} as any);
+						}
+					}
+				}
+			} catch {
+				// chatLanguageModels.json not found or invalid - skip
+				// silent fail
 			}
 		}
 		return models;

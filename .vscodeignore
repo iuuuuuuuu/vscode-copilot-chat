@@ -36,6 +36,8 @@ node_modules/@github/copilot/sharp/**
 !package.nls.json
 !package.nls.*.json
 !telemetry.json
+!l10n/bundle.l10n.json
 !l10n/bundle.l10n.*.json
 !ThirdPartyNotices.txt
 !LICENSE.txt
+

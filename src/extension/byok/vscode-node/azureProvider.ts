@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
-import { AzureAuthMode, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isEndpointEditToolName } from '../../../platform/endpoint/common/endpointProvider';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
-import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 import { AbstractCustomOAIBYOKModelProvider, CustomOAIModelProviderConfig, hasExplicitApiPath } from './customOAIProvider';
@@ -89,50 +86,12 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		progress: Progress<LanguageModelResponsePart2>,
 		token: CancellationToken
 	): Promise<void> {
-		if (model.configuration?.apiKey) {
+		// Use apiKey from model (set by provideLanguageModelChatInformation) or configuration
+		const apiKey = model.apiKey || model.configuration?.apiKey;
+		if (apiKey) {
 			return super.provideLanguageModelChatResponse(model, messages, options, progress, token);
 		}
+		throw new Error('Azure model requires an API key. Please configure it in chatLanguageModels.json or BYOK settings.');
 
-		const session: vscode.AuthenticationSession = await vscode.authentication.getSession(
-			AzureAuthMode.MICROSOFT_AUTH_PROVIDER,
-			[AzureAuthMode.COGNITIVE_SERVICES_SCOPE],
-			{
-				createIfNone: true,
-				silent: false
-			}
-		);
-
-		const url = this.resolveUrl(model.id, model.url);
-		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const modelCapabilities = {
-			maxInputTokens: model.maxInputTokens,
-			maxOutputTokens: model.maxOutputTokens,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
-			name: model.name,
-			url,
-			thinking: modelConfiguration?.thinking,
-			streaming: modelConfiguration?.streaming,
-			requestHeaders: modelConfiguration?.requestHeaders,
-			editTools: model.capabilities?.editTools?.filter(isEndpointEditToolName),
-			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
-		};
-		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
-
-		const openAIChatEndpoint = this._instantiationService.createInstance(
-			AzureOpenAIEndpoint,
-			modelInfo,
-			session.accessToken,  // Pass Entra ID token
-			url
-		);
-
-		return this._lmWrapper.provideLanguageModelResponse(
-			openAIChatEndpoint,
-			messages,
-			options,
-			options.requestInitiator,
-			progress,
-			token
-		);
 	}
 }

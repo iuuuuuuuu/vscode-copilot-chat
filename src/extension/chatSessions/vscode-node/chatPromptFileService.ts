@@ -67,7 +67,7 @@ export class ChatPromptFileService extends Disposable implements IChatPromptFile
 	}
 
 	get customAgents(): readonly vscode.ChatResource[] {
-		return vscode.chat.customAgents;
+		return vscode.chat.customAgents ?? [];
 	}
 
 	get instructions(): readonly vscode.ChatResource[] {
@@ -106,7 +106,7 @@ export class ChatPromptFileService extends Disposable implements IChatPromptFile
 	}
 
 	private async refreshCustomAgents(token: CancellationToken): Promise<void> {
-		const parsedAgents = coalesce(await Promise.all(vscode.chat.customAgents.map(async resource => {
+		const parsedAgents = coalesce(await Promise.all((vscode.chat.customAgents ?? []).map(async resource => {
 			try {
 				return await this.promptsService.parseFile(resource.uri, token);
 			} catch (error) {

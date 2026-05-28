@@ -132,29 +132,17 @@ export class ContextKeysContribution extends Disposable {
 					? SESSION_LOGIN_MESSAGE
 					: `GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`;
 			this._logService.error(message);
+			// Always activate extension even when auth fails - allows BYOK/no-login mode
+			key = welcomeViewContextKeys.Activated;
 		}
 
-		if (error instanceof NotSignedUpError) {
-			key = welcomeViewContextKeys.IndividualDisabled;
-		} else if (error instanceof SubscriptionExpiredError) {
-			key = welcomeViewContextKeys.IndividualExpired;
-		} else if (error instanceof EnterpriseManagedError) {
-			key = welcomeViewContextKeys.EnterpriseDisabled;
-		} else if (error instanceof ContactSupportError) {
-			key = welcomeViewContextKeys.ContactSupport;
-		} else if (error instanceof InvalidTokenError) {
-			key = welcomeViewContextKeys.InvalidToken;
-		} else if (error instanceof GitHubLoginFailedError) {
-			key = welcomeViewContextKeys.GitHubLoginFailed;
-		} else if (error) {
-			if (!extensions.getExtension(EXTENSION_ID)?.isActive) {
-				if (error instanceof RateLimitedError) {
-					key = welcomeViewContextKeys.RateLimited;
-				} else {
-					key = welcomeViewContextKeys.Offline;
-				}
+		if (error && key === welcomeViewContextKeys.Activated) {
+			// Auth failed but we still activate - just log the error type
+			if (error instanceof NotSignedUpError) {
+				this._logService.info('[context keys] Not signed up, but activating anyway for no-login mode');
+			} else if (error instanceof GitHubLoginFailedError) {
+				this._logService.info('[context keys] GitHub login failed, but activating anyway for no-login mode');
 			}
-			this._scheduleOfflineCheck();
 		}
 
 		if (key) {

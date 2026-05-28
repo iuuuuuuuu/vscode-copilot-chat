@@ -1,4 +1,4 @@
-.DS_Store
+﻿.DS_Store
 .vscode-test/
 .vscode-test-web/
 node_modules/
@@ -62,3 +62,6 @@ test/aml/out
 .agents/skills/.local/
 .github/skills/.local/
 *.vsix
+
+# npm cache
+.npm-cache/
