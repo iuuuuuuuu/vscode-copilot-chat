@@ -40,6 +40,16 @@
 | B7 | `src/extension/chat/vscode-node/hooksOutputChannel.ts` | hooks channel → `Copilot Chat NoLogin Hooks` | 同上 |
 | B8 | `.vscodeignore` | 加 `!l10n/bundle.l10n.json` | 确保 i18n 资源打包进 VSIX |
 
+### B9: contextKeys.contribution.ts 额外改动（4处）
+
+**问题：** no-auth 用户触发 \_onAuthenticationChange\ 时，多个异步方法未 await 且无 try/catch，可能导致未处理的 Promise 拒绝，干扰 VS Code 聊天存储。
+
+**改动：**
+1. \_onAuthenticationChange\ — 所有异步调用加 \wait\ + \	ry/catch\
+2. \_updateQuotaExceededContext\ — no-auth 用户直接跳过，设 quotaExceeded = false
+3. \_updatePreviewFeaturesDisabledContext\ — no-auth 用户直接跳过
+4. \_updatePermissiveSessionContext\ — no-auth 用户跳过 GitHub session 检查
+
 ### C类：复杂逻辑改动（冲突风险较高）
 
 | # | 文件 | 改动 | 原因 |
