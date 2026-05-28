@@ -166,6 +166,11 @@ export class ContextKeysContribution extends Disposable {
 	private async _updateQuotaExceededContext() {
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
+			// No-auth users don't have quotas - always clear
+			if (copilotToken.isNoAuthUser) {
+				commands.executeCommand('setContext', chatQuotaExceededContextKey, false);
+				return;
+			}
 			commands.executeCommand('setContext', chatQuotaExceededContextKey, copilotToken.isChatQuotaExceeded);
 		} catch (e) {
 			commands.executeCommand('setContext', chatQuotaExceededContextKey, false);
@@ -175,6 +180,11 @@ export class ContextKeysContribution extends Disposable {
 	private async _updatePreviewFeaturesDisabledContext() {
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
+			// No-auth users don't have preview features - skip
+			if (copilotToken.isNoAuthUser) {
+				commands.executeCommand('setContext', previewFeaturesDisabledContextKey, false);
+				return;
+			}
 			const disabled = !copilotToken.isEditorPreviewFeaturesEnabled();
 			if (disabled) {
 				this._logService.warn(`Copilot preview features are disabled by organizational policy. Learn more: https://aka.ms/github-copilot-org-enable-features`);
@@ -206,16 +216,37 @@ export class ContextKeysContribution extends Disposable {
 	}
 
 	private async _onAuthenticationChange() {
-		this._inspectContext();
-		this._updateQuotaExceededContext();
-		this._updatePreviewFeaturesDisabledContext();
+		try {
+			await this._inspectContext();
+		} catch (e) {
+			this._logService.error('[context keys] _inspectContext failed:', e);
+		}
+		try {
+			await this._updateQuotaExceededContext();
+		} catch (e) {
+			this._logService.error('[context keys] _updateQuotaExceededContext failed:', e);
+		}
+		try {
+			await this._updatePreviewFeaturesDisabledContext();
+		} catch (e) {
+			this._logService.error('[context keys] _updatePreviewFeaturesDisabledContext failed:', e);
+		}
 		this._updateShowLogViewContext();
-		this._updatePermissiveSessionContext();
+		try {
+			await this._updatePermissiveSessionContext();
+		} catch (e) {
+			this._logService.error('[context keys] _updatePermissiveSessionContext failed:', e);
+		}
 	}
 
 	private async _updatePermissiveSessionContext() {
 		let hasPermissiveSession = false;
 		let missingPermissiveSession = false;
+		// Skip for no-auth users - they don't have GitHub sessions
+		if (this._authenticationService.copilotToken?.isNoAuthUser) {
+			commands.executeCommand('setContext', missingPermissiveSessionContextKey, false);
+			return;
+		}
 		if (!this._authenticationService.isMinimalMode) {
 			try {
 				hasPermissiveSession = !!(await this._authenticationService.getGitHubSession('permissive', { silent: true }));
