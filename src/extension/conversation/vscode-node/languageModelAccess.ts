@@ -247,6 +247,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		if (isNoLogin) {
 			chatEndpoints = allEndpoints.filter(e => isBYOKModel(e) !== -1);
 			this._logService.info(`[LanguageModelAccess] No-login mode: filtered to ${chatEndpoints.length} BYOK models`);
+			// Fallback: if no BYOK endpoints found (e.g. UNKNOWN vendor errors), show all endpoints
+			if (chatEndpoints.length === 0 && allEndpoints.length > 0) {
+				chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || !(e instanceof AutoChatEndpoint));
+				this._logService.info(`[LanguageModelAccess] No-login mode: BYOK filter returned 0, falling back to ${chatEndpoints.length} all endpoints`);
+			}
 		} else {
 			chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		}

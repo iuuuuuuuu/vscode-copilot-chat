@@ -63,7 +63,11 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			this._providers.set(CustomOAIBYOKModelProvider.providerName.toLowerCase(), instantiationService.createInstance(CustomOAIBYOKModelProvider, this._byokStorageService));
 
 			for (const [providerName, provider] of this._providers) {
-				this._store.add(lm.registerLanguageModelChatProvider(providerName, provider));
+				try {
+					this._store.add(lm.registerLanguageModelChatProvider(providerName, provider));
+				} catch (error) {
+					this._logService.warn(`[BYOK] Failed to register provider '${providerName}': ${error}`);
+				}
 			}
 		}
 	}
